@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modern Sudoku Validator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4361ee;
+      --secondary: #3f37c9;
+      --accent: #4895ef;
+      --light: #f8f9fa;
+      --dark: #212529;
+      --success: #4cc9f0;
+      --danger: #f72585;
+      --warning: #f8961e;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f0f2f5;
+      color: var(--dark);
+      line-height: 1.6;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+    }
+    
+    header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    h1 {
+      color: var(--primary);
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    
+    .subtitle {
+      color: #6c757d;
+      font-weight: 300;
+    }
+    
+    .game-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 25px;
+    }
+    
+    .board {
+      display: grid;
+      grid-template-columns: repeat(9, minmax(40px, 50px));
+      gap: 3px;
+      background-color: var(--dark);
+      padding: 4px;
+      border-radius: 8px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .cell {
+      width: 100%;
+      aspect-ratio: 1;
+      text-align: center;
+      font-size: 1.2rem;
+      font-weight: 500;
+      border: none;
+      background-color: white;
+      transition: all 0.2s ease;
+    }
+    
+    .cell:focus {
+      outline: 2px solid var(--accent);
+      transform: scale(1.05);
+    }
+    
+    .selected {
+      background-color: #e0f3ff;
+      box-shadow: inset 0 0 0 2px var(--accent);
+    }
+    
+    .highlight {
+      background-color: #fff8e1;
+    }
+    
+    .duplicate {
+      background-color: #ffebee;
+      color: var(--danger);
+    }
+    
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 15px;
+    }
+    
+    button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-family: 'Poppins', sans-serif;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background-color: var(--secondary);
+      transform: translateY(-2px);
+    }
+    
+    .status {
+      font-size: 1rem;
+      color: var(--primary);
+      font-weight: 500;
+      margin: 15px 0;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+    }
+    
+    .result {
+      font-size: 1.2rem;
+      font-weight: 600;
+      padding: 12px 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+    
+    .valid {
+      background-color: #e6f7ff;
+      color: var(--success);
+    }
+    
+    .invalid {
+      background-color: #ffebee;
+      color: var(--danger);
+    }
+    
+    @media (max-width: 600px) {
+      .board {
+        grid-template-columns: repeat(9, minmax(30px, 40px));
+      }
+      .cell {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Sudoku Validator</h1>
+      <p class="subtitle">Create custom zones and validate your Sudoku solution</p>
+    </header>
+    
+    <div class="game-area">
+      <div class="board" id="board"></div>
+      
+      <div class="status" id="status">
+        <span>🔹 Select 9 cells to create a custom zone</span>
+      </div>
+      
+      <div class="controls">
+        <button class="btn-primary" onclick="saveZone()">
+          <span>💾 Save Zone</span>
+        </button>
+        <button class="btn-primary" onclick="checkBoard()">
+          <span>✅ Validate</span>
+        </button>
+      </div>
+      
+      <div class="result" id="result"></div>
+    </div>
+  </div>
+
+  <script>
+    let zones = [];
+    let currentZone = [];
+
+    // Create board
+    for (let i = 0; i < 81; i++) {
+      let cell = document.createElement("input");
+      cell.className = "cell";
+      cell.maxLength = 1;
+      cell.dataset.pos = i;
+      
+      cell.onclick = () => toggleZone(cell);
+      cell.oninput = () => {
+        highlightSame(cell.value);
+        markDuplicates();
+      };
+      
+      document.getElementById("board").appendChild(cell);
+    }
+
+    function toggleZone(cell) {
+      if (cell.classList.contains("selected")) {
+        cell.classList.remove("selected");
+        currentZone = currentZone.filter(pos => pos != cell.dataset.pos);
+      } else if (currentZone.length < 9) {
+        cell.classList.add("selected");
+        currentZone.push(cell.dataset.pos);
+      }
+      updateStatus();
+    }
+
+    function saveZone() {
+      if (currentZone.length !== 9) {
+        alert("Please select exactly 9 cells to create a zone");
+        return;
+      }
+      zones.push([...currentZone]);
+      clearSelection();
+      updateStatus("✔ Zone saved! Select 9 more cells for another zone");
+    }
+
+    function checkBoard() {
+      let board = Array(9).fill().map(() => Array(9).fill(0));
+      document.querySelectorAll(".cell").forEach(cell => {
+        let [r, c] = [Math.floor(cell.dataset.pos/9), cell.dataset.pos%9];
+        board[r][c] = cell.value.match(/[1-9]/) ? cell.value : 0;
+      });
+      
+      const resultElement = document.getElementById("result");
+      if (isValid(board, zones)) {
+        resultElement.textContent = "✓ Sudoku is valid!";
+        resultElement.className = "result valid";
+      } else {
+        resultElement.textContent = "✗ Sudoku is invalid";
+        resultElement.className = "result invalid";
+      }
+    }
+
+    function isValid(board, zones) {
+      // Check rows and columns
+      for (let i = 0; i < 9; i++) {
+        let row = new Set(), col = new Set();
+        for (let j = 0; j < 9; j++) {
+          if (board[i][j] && row.has(board[i][j])) return false;
+          if (board[j][i] && col.has(board[j][i])) return false;
+          row.add(board[i][j]);
+          col.add(board[j][i]);
+        }
+      }
+      
+      // Check zones
+      for (let zone of zones) {
+        let nums = new Set();
+        for (let pos of zone) {
+          let [r, c] = [Math.floor(pos/9), pos%9];
+          if (board[r][c] && nums.has(board[r][c])) return false;
+          nums.add(board[r][c]);
+        }
+      }
+      return true;
+    }
+
+    function highlightSame(val) {
+      document.querySelectorAll(".cell").forEach(c => {
+        c.classList.remove("highlight");
+        if (c.value === val && val) c.classList.add("highlight");
+      });
+    }
+
+    function markDuplicates() {
+      document.querySelectorAll(".cell").forEach(c => c.classList.remove("duplicate"));
+      
+      // Check rows
+      for (let r = 0; r < 9; r++) {
+        let row = [];
+        for (let c = 0; c < 9; c++) {
+          let cell = document.querySelector(`.cell[data-pos="${r*9+c}"]`);
+          if (cell.value) row.push({val: cell.value, el: cell});
+        }
+        markDups(row);
+      }
+      
+      // Check columns
+      for (let c = 0; c < 9; c++) {
+        let col = [];
+        for (let r = 0; r < 9; r++) {
+          let cell = document.querySelector(`.cell[data-pos="${r*9+c}"]`);
+          if (cell.value) col.push({val: cell.value, el: cell});
+        }
+        markDups(col);
+      }
+    }
+
+    function markDups(group) {
+      let counts = {};
+      group.forEach(item => {
+        counts[item.val] = (counts[item.val] || 0) + 1;
+      });
+      group.forEach(item => {
+        if (counts[item.val] > 1) item.el.classList.add("duplicate");
+      });
+    }
+
+    function clearSelection() {
+      document.querySelectorAll(".selected").forEach(c => c.classList.remove("selected"));
+      currentZone = [];
+    }
+
+    function updateStatus(msg) {
+      const statusElement = document.getElementById("status");
+      if (msg) {
+        statusElement.innerHTML = `<span>${msg}</span>`;
+      } else {
+        statusElement.innerHTML = `<span>🔹 ${currentZone.length}/9 cells selected for zone</span>`;
+      }
+    }
+  </script>
+</body>
+</html>
